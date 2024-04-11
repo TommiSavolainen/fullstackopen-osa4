@@ -37,7 +37,47 @@ test('there are two blogs', async () => {
 
     assert.strictEqual(response.body.length, initialBlogs.length);
 });
-
+test('Testing all blogs have ID', async () => {
+    const response = await api.get('/api/blogs');
+    response.body.forEach((blog) => {
+        assert.strictEqual(blog._id, undefined, 'Blog has _id');
+    });
+});
+test('a valid blog can be added', async () => {
+    const newBlog = {
+        title: 'Third blog',
+        author: 'Third author',
+        url: 'http://www.thirdblog.com',
+        likes: 3,
+    };
+    await api
+        .post('/api/blogs')
+        .send(newBlog)
+        .expect(201)
+        .expect('Content-Type', /application\/json/);
+    const response = await api.get('/api/blogs');
+    const titles = response.body.map((r) => r.title);
+    assert.strictEqual(response.body.length, initialBlogs.length + 1);
+    assert.ok(titles.includes('Third blog'));
+});
+test('if likes is missing, it will default to 0', async () => {
+    const newBlog = {
+        title: 'Fourth blog',
+        author: 'Fourth author',
+        url: 'http://www.fourthblog.com',
+    };
+    await api.post('/api/blogs').send(newBlog);
+    const response = await api.get('/api/blogs');
+    const likes = response.body.map((r) => r.likes);
+    assert.strictEqual(likes[likes.length - 1], 0);
+});
+test('if title and url is missing, it will return 400', async () => {
+    const newBlog = {
+        author: 'Fifth author',
+        likes: 5,
+    };
+    await api.post('/api/blogs').send(newBlog).expect(400);
+});
 after(async () => {
     await mongoose.connection.close();
 });
