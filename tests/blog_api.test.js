@@ -24,9 +24,12 @@ const initialBlogs = [
 ];
 beforeEach(async () => {
     await Blog.deleteMany({});
+    const users = await helper.usersInDb();
     let blogObject = new Blog(initialBlogs[0]);
+    blogObject.user = users[0].id;
     await blogObject.save();
     blogObject = new Blog(initialBlogs[1]);
+    blogObject.user = users[0].id;
     await blogObject.save();
 });
 test('blogs are returned as json', async () => {
@@ -47,11 +50,13 @@ test('Testing all blogs have ID', async () => {
     });
 });
 test('a valid blog can be added', async () => {
+    const users = await helper.usersInDb();
     const newBlog = {
         title: 'Third blog',
         author: 'Third author',
         url: 'http://www.thirdblog.com',
         likes: 3,
+        user: users[0].id,
     };
     await api
         .post('/api/blogs')
@@ -64,10 +69,12 @@ test('a valid blog can be added', async () => {
     assert.ok(titles.includes('Third blog'));
 });
 test('if likes is missing, it will default to 0', async () => {
+    const users = await helper.usersInDb();
     const newBlog = {
         title: 'Fourth blog',
         author: 'Fourth author',
         url: 'http://www.fourthblog.com',
+        user: users[0].id,
     };
     await api.post('/api/blogs').send(newBlog);
     const response = await api.get('/api/blogs');
@@ -106,7 +113,7 @@ describe('when there is initially one user in db', () => {
     beforeEach(async () => {
         await User.deleteMany({});
         const passwordHash = await bcrypt.hash('sekret', 10);
-        const user = new User({ username: 'root', passwordHash });
+        const user = new User({ username: 'root', name: 'rootadmin', password: 'admin', passwordHash });
         await user.save();
     });
     test('creation succeeds with a fresh username', async () => {
@@ -142,7 +149,40 @@ describe('when there is initially one user in db', () => {
         assert.ok(result.body.error);
         assert.strictEqual(usersAtEnd.length, usersAtStart.length);
     });
+    test('creation fails with proper statuscode and message if username is less than 3 characters', async () => {
+        const usersAtStart = await helper.usersInDb();
+        const newUser = {
+            username: 'ro',
+            name: 'Superuser',
+            password: 'salainen',
+        };
+        const result = await api
+            .post('/api/users')
+            .send(newUser)
+            .expect(400)
+            .expect('Content-Type', /application\/json/);
+        const usersAtEnd = await helper.usersInDb();
+        assert.ok(result.body.error);
+        assert.strictEqual(usersAtEnd.length, usersAtStart.length);
+    });
+    test('creation fails with proper statuscode and message if password is less than 3 characters', async () => {
+        const usersAtStart = await helper.usersInDb();
+        const newUser = {
+            username: 'root',
+            name: 'Superuser',
+            password: 'sa',
+        };
+        const result = await api
+            .post('/api/users')
+            .send(newUser)
+            .expect(400)
+            .expect('Content-Type', /application\/json/);
+        const usersAtEnd = await helper.usersInDb();
+        assert.ok(result.body.error);
+        assert.strictEqual(usersAtEnd.length, usersAtStart.length);
+    });
 });
+
 after(async () => {
     await mongoose.connection.close();
 });
