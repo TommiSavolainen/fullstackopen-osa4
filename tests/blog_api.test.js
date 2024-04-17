@@ -8,6 +8,7 @@ const assert = require('node:assert');
 const User = require('../models/user');
 const bcrypt = require('bcrypt');
 const helper = require('./test_helper');
+const jwt = require('jsonwebtoken');
 const initialBlogs = [
     {
         title: 'First blog',
@@ -22,6 +23,19 @@ const initialBlogs = [
         likes: 2,
     },
 ];
+let token;
+
+beforeEach(async () => {
+    const newUser = {
+        username: 'testuser',
+        password: 'testpassword',
+    };
+
+    await api.post('/api/users').send(newUser);
+
+    const result = await api.post('/api/login').send(newUser);
+    token = result.body.token;
+});
 beforeEach(async () => {
     await Blog.deleteMany({});
     const users = await helper.usersInDb();
@@ -35,16 +49,17 @@ beforeEach(async () => {
 test('blogs are returned as json', async () => {
     await api
         .get('/api/blogs')
+        .set('Authorization', `Bearer ${token}`)
         .expect(200)
         .expect('Content-Type', /application\/json/);
 });
 test('there are two blogs', async () => {
-    const response = await api.get('/api/blogs');
+    const response = await api.get('/api/blogs').set('Authorization', `Bearer ${token}`);
 
     assert.strictEqual(response.body.length, initialBlogs.length);
 });
 test('Testing all blogs have ID', async () => {
-    const response = await api.get('/api/blogs');
+    const response = await api.get('/api/blogs').set('Authorization', `Bearer ${token}`);
     response.body.forEach((blog) => {
         assert.strictEqual(blog._id, undefined, 'Blog has _id');
     });
@@ -60,10 +75,11 @@ test('a valid blog can be added', async () => {
     };
     await api
         .post('/api/blogs')
+        .set('Authorization', `Bearer ${token}`)
         .send(newBlog)
         .expect(201)
         .expect('Content-Type', /application\/json/);
-    const response = await api.get('/api/blogs');
+    const response = await api.get('/api/blogs').set('Authorization', `Bearer ${token}`);
     const titles = response.body.map((r) => r.title);
     assert.strictEqual(response.body.length, initialBlogs.length + 1);
     assert.ok(titles.includes('Third blog'));
@@ -76,8 +92,8 @@ test('if likes is missing, it will default to 0', async () => {
         url: 'http://www.fourthblog.com',
         user: users[0].id,
     };
-    await api.post('/api/blogs').send(newBlog);
-    const response = await api.get('/api/blogs');
+    await api.post('/api/blogs').set('Authorization', `Bearer ${token}`).send(newBlog);
+    const response = await api.get('/api/blogs').set('Authorization', `Bearer ${token}`);
     const likes = response.body.map((r) => r.likes);
     assert.strictEqual(likes[likes.length - 1], 0);
 });
@@ -86,17 +102,36 @@ test('if title and url is missing, it will return 400', async () => {
         author: 'Fifth author',
         likes: 5,
     };
-    await api.post('/api/blogs').send(newBlog).expect(400);
+    await api.post('/api/blogs').set('Authorization', `Bearer ${token}`).send(newBlog).expect(400);
 });
+// test('a blog can be deleted', async () => {
+//     const response = await api.get('/api/blogs').set('Authorization', `Bearer ${token}`);
+//     const id = response.body[0].id;
+//     await api.delete(`/api/blogs/${id}`).set('Authorization', `Bearer ${token}`).expect(204);
+//     const response2 = await api.get('/api/blogs').set('Authorization', `Bearer ${token}`);
+//     assert.strictEqual(response2.body.length, initialBlogs.length - 1);
+// });
 test('a blog can be deleted', async () => {
-    const response = await api.get('/api/blogs');
-    const id = response.body[0].id;
-    await api.delete(`/api/blogs/${id}`).expect(204);
-    const response2 = await api.get('/api/blogs');
-    assert.strictEqual(response2.body.length, initialBlogs.length - 1);
+    // Create a new blog
+    const newBlog = {
+        title: 'Blog to be deleted',
+        author: 'Test author',
+        url: 'http://www.testblog.com',
+        likes: 0,
+    };
+    const createdBlogResponse = await api.post('/api/blogs').set('Authorization', `Bearer ${token}`).send(newBlog);
+    const createdBlogId = createdBlogResponse.body.id;
+
+    // Delete the blog
+    await api.delete(`/api/blogs/${createdBlogId}`).set('Authorization', `Bearer ${token}`).expect(204);
+
+    // Check that the blog was deleted
+    const responseAfterDelete = await api.get('/api/blogs').set('Authorization', `Bearer ${token}`);
+    const blogIdsAfterDelete = responseAfterDelete.body.map((blog) => blog.id);
+    assert.strictEqual(blogIdsAfterDelete.includes(createdBlogId), false);
 });
 test('a blog can be updated', async () => {
-    const response = await api.get('/api/blogs');
+    const response = await api.get('/api/blogs').set('Authorization', `Bearer ${token}`);
     const id = response.body[0].id;
     const updatedBlog = {
         title: 'Updated blog',
@@ -104,8 +139,8 @@ test('a blog can be updated', async () => {
         url: 'http://www.updatedblog.com',
         likes: 10,
     };
-    await api.put(`/api/blogs/${id}`).send(updatedBlog);
-    const response2 = await api.get('/api/blogs');
+    await api.put(`/api/blogs/${id}`).set('Authorization', `Bearer ${token}`).send(updatedBlog);
+    const response2 = await api.get('/api/blogs').set('Authorization', `Bearer ${token}`);
     const titles = response2.body.map((r) => r.title);
     assert.ok(titles.includes('Updated blog'));
 });

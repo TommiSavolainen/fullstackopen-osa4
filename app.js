@@ -7,13 +7,34 @@ const config = require('./utils/config');
 const blogsRouter = require('./controllers/blogs');
 const usersRouter = require('./controllers/users');
 const loginRouter = require('./controllers/login');
+const jwt = require('jsonwebtoken');
+const User = require('./models/user');
 
 const mongoUrl = config.MONGODB_URI;
 mongoose.connect(mongoUrl);
+const tokenExtractor = (request, response, next) => {
+    const authorization = request.get('authorization');
+    if (authorization && authorization.startsWith('Bearer ')) {
+        request.token = authorization.substring(7);
+    }
+    next();
+};
+
+app.use(tokenExtractor);
+
+const userExtractor = async (request, response, next) => {
+    const decodedToken = jwt.verify(request.token, process.env.SECRET);
+    if (!decodedToken || !decodedToken.id) {
+        return response.status(401).json({ error: 'token missing or invalid' });
+    }
+    request.user = await User.findById(decodedToken.id);
+    next();
+};
+// app.use(userExtractor);
 
 app.use(cors());
 app.use(express.json());
-app.use('/api/blogs', blogsRouter);
+app.use('/api/blogs', userExtractor, blogsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/login', loginRouter);
 
