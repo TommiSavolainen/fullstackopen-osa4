@@ -34,7 +34,7 @@ const userExtractor = async (request, response, next) => {
 
 app.use(cors());
 app.use(express.json());
-app.use('/api/blogs', userExtractor, blogsRouter);
+app.use('/api/blogs', blogsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/login', loginRouter);
 
@@ -55,4 +55,4 @@ app.use(errorHandler);
 app.listen(config.PORT, () => {
     logger.info(`Server running on port ${config.PORT}`);
 });
-module.exports = app;
+module.exports = { app, userExtractor };
