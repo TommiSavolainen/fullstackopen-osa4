@@ -38,6 +38,12 @@ app.use('/api/blogs', blogsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/login', loginRouter);
 
+if (process.env.NODE_ENV === 'test') {
+    const testingRouter = require('./controllers/testing');
+    app.use('/api/testing', testingRouter);
+    console.log('testing router enabled');
+}
+
 const errorHandler = (error, request, response, next) => {
     logger.error(error.message);
     if (error.name === 'CastError') {
@@ -54,5 +60,6 @@ const errorHandler = (error, request, response, next) => {
 app.use(errorHandler);
 app.listen(config.PORT, () => {
     logger.info(`Server running on port ${config.PORT}`);
+    // console.log(`Server running on port ${config.PORT}`);
 });
 module.exports = app;
